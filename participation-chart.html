@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Average Participation Rate in Greek Municipal Elections</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://d3js.org/d3-dsv.v2.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        h1,
+        h2 {
+            text-align: center;
+        }
+
+        .line {
+            fill: none;
+            stroke-width: 2px;
+        }
+
+        .axis {
+            font: 10px 'Roboto', sans-serif;
+        }
+
+        .axis path,
+        .axis line {
+            fill: none;
+            stroke: #000;
+            shape-rendering: crispEdges;
+        }
+
+        .tooltip {
+            position: absolute;
+            background-color: white;
+            border: 1px solid #ddd;
+            padding: 10px;
+            pointer-events: none;
+            font-size: 14px;
+        }
+
+        #chart {
+            display: flex;
+            justify-content: center;
+        }
+
+        #explanation {
+            max-width: 800px;
+            margin: 0 auto;
+            text-align: justify;
+            padding: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Average Participation Rate in Greek Municipal Elections</h1>
+    <div id="chart"></div>
+    <div id="explanation">
+        <p>This chart shows the average participation rate in Greek municipal elections from 1951 to 2019.
+            Municipalities are categorized into three groups based on their size:</p>
+        <ul>
+            <li><strong>Small municipalities:</strong> The bottom third of municipalities by number of registered
+                voters.</li>
+            <li><strong>Medium municipalities:</strong> The middle third of municipalities by number of registered
+                voters.</li>
+            <li><strong>Large municipalities:</strong> The top third of municipalities by number of registered voters.
+            </li>
+        </ul>
+        <p>The chart displays the average participation rate for each group, along with the 25th and 75th percentiles to
+            show the spread of participation rates within each group.</p>
+    </div>
+    <script>
+        // Load and process the data
+        d3.csv("./data/elections_all.csv").then(data => {
+            // Filter for municipalities (Δήμοι) and communities (Κοινότητες)
+            const municipalitiesData = data.filter(d => d['ΟΝΟΜΑΣΙΑ ΟΤΑ'].startsWith('Δ.') || d['ΟΝΟΜΑΣΙΑ ΟΤΑ'].startsWith('Κ.'));
+            console.log(`There are ${municipalitiesData.length} municipality-years in the data.`)
+
+            // Group data by year
+            const dataByYear = d3.group(municipalitiesData, d => d['ΕΤΟΣ']);
+            console.log(`There are ${dataByYear.size} years in the data.`)
+
+            // Function to calculate percentiles
+            const calculatePercentiles = (arr, accessor) => {
+                const sorted = arr.sort((a, b) => accessor(a) - accessor(b));
+                const len = sorted.length;
+                return {
+                    small: accessor(sorted[Math.floor(len / 3)]),
+                    medium: accessor(sorted[Math.floor(2 * len / 3)])
+                };
+            };
+
+            // Process data for each year
+            const processedData = Array.from(dataByYear, ([year, yearData]) => {
+                console.log(`Processing data for year ${year}...`)
+                const percentiles = calculatePercentiles(yearData, d => {
+                    const value = +d['ΕΓΓΕΓΡΑΜΜΕΝΟΙ (Α)'];
+                    if (isNaN(value)) {
+                        console.warn(`Invalid 'ΕΓΓΕΓΡΑΜΜΕΝΟΙ (Α)' value for year ${year}`);
+                        return 0;
+                    }
+                    return value;
+                });
+
+                console.log(`Percentiles for year ${year}:`, percentiles)
+
+                const categorizedData = yearData.map(d => {
+                    const registered = +d['ΕΓΓΕΓΡΑΜΜΕΝΟΙ (Α)'];
+                    if (isNaN(registered)) {
+                        console.warn(`Invalid 'ΕΓΓΕΓΡΑΜΜΕΝΟΙ (Α)' value for year ${year}`);
+                        return null;
+                    }
+                    return {
+                        ...d,
+                        category: registered <= percentiles.small ? 'small' :
+                            registered <= percentiles.medium ? 'medium' : 'large'
+                    };
+                }).filter(d => d !== null);
+
+                const calculateAverageAndQuantiles = (category) => {
+                    const filtered = categorizedData.filter(d => d.category === category);
+                    const participationRates = filtered.map(d => {
+                        const registered = +d['ΕΓΓΕΓΡΑΜΜΕΝΟΙ (Α)'];
+                        const voted = +d['ΨΗΦΙΣΑΝΤΕΣ (Α)'];
+                        if (isNaN(registered) || isNaN(voted) || registered === 0) {
+                            console.warn(`Invalid data for year ${year}, category ${category}`);
+                            return null;
+                        }
+                        return voted / registered;
+                    }).filter(rate => rate !== null);
+
+                    const average = d3.mean(participationRates);
+                    const q25 = d3.quantile(participationRates, 0.25);
+                    const q75 = d3.quantile(participationRates, 0.75);
+
+                    return { average, q25, q75 };
+                };
+
+                return {
+                    year: +year,
+                    small: calculateAverageAndQuantiles('small'),
+                    medium: calculateAverageAndQuantiles('medium'),
+                    large: calculateAverageAndQuantiles('large')
+                };
+            }).sort((a, b) => a.year - b.year);
+
+            // Filter out years with no data
+            const validData = processedData.filter(d => d.small.average > 0 && d.medium.average > 0 && d.large.average > 0);
+
+            // Set up chart dimensions
+            const margin = { top: 40, right: 80, bottom: 60, left: 60 };
+            const width = 900 - margin.left - margin.right;
+            const height = 500 - margin.top - margin.bottom;
+
+            // Create SVG element
+            const svg = d3.select("#chart")
+                .append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom)
+                .append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+
+            // Set up scales
+            const x = d3.scaleLinear()
+                .domain(d3.extent(validData, d => d.year))
+                .range([0, width]);
+
+            const yMin = d3.min(validData, d => Math.min(d.small.q25, d.medium.q25, d.large.q25)) - 0.05;
+            const yMax = d3.max(validData, d => Math.max(d.small.q75, d.medium.q75, d.large.q75)) + 0.05;
+            const y = d3.scaleLinear()
+                .domain([Math.max(0, yMin), Math.min(1, yMax)])
+                .range([height, 0]);
+
+            // Create line generators with curve
+            const createLine = (key) => d3.line()
+                .x(d => x(d.year))
+                .y(d => y(d[key].average))
+                .curve(d3.curveCatmullRom.alpha(0.5));
+
+            // Create area generators for quantiles
+            const createArea = (key) => d3.area()
+                .x(d => x(d.year))
+                .y0(d => y(d[key].q25))
+                .y1(d => y(d[key].q75))
+                .curve(d3.curveCatmullRom.alpha(0.5));
+
+            const categories = ['small', 'medium', 'large'];
+            const colors = ['#ff6b6b', '#feca57', '#48dbfb'];
+
+            // Add X axis
+            svg.append("g")
+                .attr("class", "axis")
+                .attr("transform", `translate(0,${height})`)
+                .call(d3.axisBottom(x)
+                    .tickValues(validData.map(d => d.year))
+                    .tickFormat(d3.format("d")));
+
+            // Add Y axis
+            svg.append("g")
+                .attr("class", "axis")
+                .call(d3.axisLeft(y).tickFormat(d3.format(".0%")));
+
+            // Add vertical lines for election years
+            svg.selectAll(".election-year-line")
+                .data(validData.map(d => d.year))
+                .enter().append("line")
+                .attr("class", "election-year-line")
+                .attr("x1", d => x(d))
+                .attr("x2", d => x(d))
+                .attr("y1", 0)
+                .attr("y2", height)
+                .attr("stroke", "#dfe6e9")
+                .attr("stroke-width", 1)
+                .attr("stroke-dasharray", "5,5");
+
+            // Add the quantile areas
+            categories.forEach((category, i) => {
+                svg.append("path")
+                    .datum(validData)
+                    .attr("class", `area ${category}`)
+                    .attr("d", createArea(category))
+                    .attr("fill", colors[i])
+                    .attr("fill-opacity", 0.1);
+            });
+
+            // Add the quantile lines
+            categories.forEach((category, i) => {
+                svg.append("path")
+                    .datum(validData)
+                    .attr("class", `quantile-line ${category}`)
+                    .attr("d", d3.line()
+                        .x(d => x(d.year))
+                        .y(d => y(d[category].q25))
+                        .curve(d3.curveCatmullRom.alpha(0.5)))
+                    .attr("stroke", colors[i])
+                    .attr("stroke-width", 1)
+                    .attr("stroke-dasharray", "5,5")
+                    .attr("fill", "none");
+
+                svg.append("path")
+                    .datum(validData)
+                    .attr("class", `quantile-line ${category}`)
+                    .attr("d", d3.line()
+                        .x(d => x(d.year))
+                        .y(d => y(d[category].q75))
+                        .curve(d3.curveCatmullRom.alpha(0.5)))
+                    .attr("stroke", colors[i])
+                    .attr("stroke-width", 1)
+                    .attr("stroke-dasharray", "5,5")
+                    .attr("fill", "none");
+            });
+
+            // Add the line paths
+            categories.forEach((category, i) => {
+                svg.append("path")
+                    .datum(validData)
+                    .attr("class", `line ${category}`)
+                    .attr("d", createLine(category))
+                    .attr("stroke", colors[i])
+                    .attr("stroke-width", 2)
+                    .attr("fill", "none");
+            });
+
+            // Add tooltips
+            const tooltip = d3.select("body").append("div")
+                .attr("class", "tooltip")
+                .style("opacity", 0);
+
+            categories.forEach((category, i) => {
+                svg.selectAll(`.dot-${category}`)
+                    .data(validData)
+                    .enter().append("circle")
+                    .attr("class", `dot-${category}`)
+                    .attr("cx", d => x(d.year))
+                    .attr("cy", d => y(d[category].average))
+                    .attr("r", 2)
+                    .attr("fill", colors[i])
+                    .on("mouseover", (event, d) => {
+                        tooltip.transition()
+                            .duration(200)
+                            .style("opacity", .9);
+                        tooltip.html(`Year: ${d.year}<br/>${category.charAt(0).toUpperCase() + category.slice(1)} Municipalities:<br/>
+                            Average: ${(d[category].average * 100).toFixed(2)}%<br/>
+                            25th Percentile: ${(d[category].q25 * 100).toFixed(2)}%<br/>
+                            75th Percentile: ${(d[category].q75 * 100).toFixed(2)}%`)
+                            .style("left", (event.pageX + 5) + "px")
+                            .style("top", (event.pageY - 28) + "px");
+
+                        // Highlight current group
+                        svg.selectAll(`.line:not(.${category}), .area:not(.${category}), .quantile-line:not(.${category})`)
+                            .transition()
+                            .duration(200)
+                            .style("opacity", 0.1);
+                    })
+                    .on("mouseout", () => {
+                        tooltip.transition()
+                            .duration(500)
+                            .style("opacity", 0);
+
+                        // Restore all groups
+                        svg.selectAll(".line, .area, .quantile-line")
+                            .transition()
+                            .duration(200)
+                            .style("opacity", 1);
+                    });
+            });
+
+            // Add legend
+            const legend = svg.append("g")
+                .attr("font-family", "Roboto, sans-serif")
+                .attr("font-size", 10)
+                .attr("text-anchor", "end")
+                .selectAll("g")
+                .data(categories.map((category, i) => ({ category, color: colors[i] })))
+                .enter().append("g")
+                .attr("transform", (d, i) => `translate(0,${i * 20})`);
+
+            legend.append("rect")
+                .attr("x", width + 20)
+                .attr("width", 19)
+                .attr("height", 19)
+                .attr("fill", d => d.color);
+
+            legend.append("text")
+                .attr("x", width + 15)
+                .attr("y", 9.5)
+                .attr("dy", "0.32em")
+                .text(d => `${d.category.charAt(0).toUpperCase() + d.category.slice(1)} Municipalities`);
+
+            // Add chart title
+            svg.append("text")
+                .attr("x", width / 2)
+                .attr("y", -margin.top / 2)
+                .attr("text-anchor", "middle")
+                .style("font-size", "16px")
+                .style("font-weight", "bold")
+                .text("Average Participation Rate by Municipality Size");
+
+            // Add axis labels
+            svg.append("text")
+                .attr("transform", `translate(${width / 2}, ${height + margin.bottom - 10})`)
+                .style("text-anchor", "middle")
+                .text("Year");
+
+            svg.append("text")
+                .attr("transform", "rotate(-90)")
+                .attr("y", 0 - margin.left)
+                .attr("x", 0 - (height / 2))
+                .attr("dy", "1em")
+                .style("text-anchor", "middle")
+                .text("Participation Rate");
+
+            // Print examples
+            const latestYear = d3.max(municipalitiesData, d => d['ΕΤΟΣ']);
+            const latestYearData = municipalitiesData.filter(d => d['ΕΤΟΣ'] === latestYear);
+            const latestYearPercentiles = calculatePercentiles(latestYearData, d => {
+                const value = +d['ΕΓΓΕΓΡΑΜΜΕΝΟΙ (Α)'];
+                if (isNaN(value)) {
+                    console.warn(`Invalid 'ΕΓΓΕΓΡΑΜΜΕΝΟΙ (Α)' value for latest year ${latestYear}`);
+                    return 0;
+                }
+                return value;
+            });
+
+            const getExamples = (category) => {
+                let filtered;
+                if (category === 'small') {
+                    filtered = latestYearData.filter(d => +d['ΕΓΓΕΓΡΑΜΜΕΝΟΙ (Α)'] <= latestYearPercentiles.small);
+                } else if (category === 'medium') {
+                    filtered = latestYearData.filter(d => +d['ΕΓΓΕΓΡΑΜΜΕΝΟΙ (Α)'] > latestYearPercentiles.small && +d['ΕΓΓΕΓΡΑΜΜΕΝΟΙ (Α)'] <= latestYearPercentiles.medium);
+                } else {
+                    filtered = latestYearData.filter(d => +d['ΕΓΓΕΓΡΑΜΜΕΝΟΙ (Α)'] > latestYearPercentiles.medium);
+                }
+                return filtered.slice(0, 3).map(d => d['ΟΝΟΜΑΣΙΑ ΟΤΑ']);
+            };
+
+            console.log("Small municipalities examples:", getExamples('small'));
+            console.log("Medium municipalities examples:", getExamples('medium'));
+            console.log("Large municipalities examples:", getExamples('large'));
+        }).catch(error => {
+            console.error("Error processing data:", error);
+        });
+    </script>
+</body>
+
+</html>
