@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="el">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Average Participation Rate in Greek Municipal Elections</title>
+    <title>Μέσο Ποσοστό Συμμετοχής στις Ελληνικές Δημοτικές Εκλογές</title>
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <script src="https://d3js.org/d3-dsv.v2.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
@@ -63,21 +63,29 @@
 </head>
 
 <body>
-    <h1>Average Participation Rate in Greek Municipal Elections</h1>
+    <h1>Μέσο Ποσοστό Συμμετοχής στις Ελληνικές Δημοτικές Εκλογές</h1>
     <div id="chart"></div>
     <div id="explanation">
-        <p>This chart shows the average participation rate in Greek municipal elections from 1951 to 2019.
-            Municipalities are categorized into three groups based on their size:</p>
+        <p>Αυτό το γράφημα δείχνει το μέσο ποσοστό συμμετοχής στις ελληνικές δημοτικές εκλογές από το 1951 έως το 2019.
+            Οι δήμοι κατηγοριοποιούνται σε τρεις ομάδες με βάση το μέγεθός τους:</p>
         <ul>
-            <li><strong>Small municipalities:</strong> The bottom third of municipalities by number of registered
-                voters.</li>
-            <li><strong>Medium municipalities:</strong> The middle third of municipalities by number of registered
-                voters.</li>
-            <li><strong>Large municipalities:</strong> The top third of municipalities by number of registered voters.
-            </li>
+            <li><strong>Μικροί δήμοι:</strong> Το κατώτερο τρίτο των δήμων με βάση τον αριθμό των εγγεγραμμένων
+                ψηφοφόρων.</li>
+            <li><strong>Μεσαίοι δήμοι:</strong> Το μεσαίο τρίτο των δήμων με βάση τον αριθμό των εγγεγραμμένων
+                ψηφοφόρων.</li>
+            <li><strong>Μεγάλοι δήμοι:</strong> Το ανώτερο τρίτο των δήμων με βάση τον αριθμό των εγγεγραμμένων
+                ψηφοφόρων.</li>
         </ul>
-        <p>The chart displays the average participation rate for each group, along with the 25th and 75th percentiles to
-            show the spread of participation rates within each group.</p>
+        <p>Το γράφημα εμφανίζει το μέσο ποσοστό συμμετοχής για κάθε ομάδα, μαζί με το 25ο και 75ο εκατοστημόριο για να
+            δείξει την κατανομή των ποσοστών συμμετοχής εντός κάθε ομάδας.</p>
+        <footer style="margin-top: 20px; font-size: 12px; text-align: center; color: #666;">
+            <p>
+                Δεδομένα από τον <a href="https://www.eetaa.gr/" target="_blank" rel="noopener noreferrer">ΕΕΤΑ</a>,
+                κώδικας στο <a href="https://github.com/christosporios/municipalities-gr" target="_blank"
+                    rel="noopener noreferrer">GitHub</a>
+            </p>
+        </footer>
+
     </div>
     <script>
         // Load and process the data
@@ -210,6 +218,22 @@
                 .attr("class", "axis")
                 .call(d3.axisLeft(y).tickFormat(d3.format(".0%")));
 
+            // Add horizontal dotted lines per 10 percentage points
+            const yTicks = y.ticks(10);
+            svg.selectAll(".horizontalGrid")
+                .data(yTicks)
+                .enter()
+                .append("line")
+                .attr("class", "horizontalGrid")
+                .attr("x1", 0)
+                .attr("x2", width)
+                .attr("y1", d => y(d))
+                .attr("y2", d => y(d))
+                .attr("fill", "none")
+                .attr("stroke", "#ddd")
+                .attr("stroke-width", 1)
+                .attr("stroke-dasharray", "3,3");
+
             // Add vertical lines for election years
             svg.selectAll(".election-year-line")
                 .data(validData.map(d => d.year))
@@ -289,10 +313,10 @@
                         tooltip.transition()
                             .duration(200)
                             .style("opacity", .9);
-                        tooltip.html(`Year: ${d.year}<br/>${category.charAt(0).toUpperCase() + category.slice(1)} Municipalities:<br/>
-                            Average: ${(d[category].average * 100).toFixed(2)}%<br/>
-                            25th Percentile: ${(d[category].q25 * 100).toFixed(2)}%<br/>
-                            75th Percentile: ${(d[category].q75 * 100).toFixed(2)}%`)
+                        tooltip.html(`Έτος: ${d.year}<br/>${category === 'small' ? 'Μικροί' : category === 'medium' ? 'Μεσαίοι' : 'Μεγάλοι'} Δήμοι:<br/>
+                            Μέσος Όρος: ${(d[category].average * 100).toFixed(2)}%<br/>
+                            25ο Εκατοστημόριο: ${(d[category].q25 * 100).toFixed(2)}%<br/>
+                            75ο Εκατοστημόριο: ${(d[category].q75 * 100).toFixed(2)}%`)
                             .style("left", (event.pageX + 5) + "px")
                             .style("top", (event.pageY - 28) + "px");
 
@@ -335,7 +359,7 @@
                 .attr("x", width + 15)
                 .attr("y", 9.5)
                 .attr("dy", "0.32em")
-                .text(d => `${d.category.charAt(0).toUpperCase() + d.category.slice(1)} Municipalities`);
+                .text(d => d.category === 'small' ? 'Μικροί Δήμοι' : d.category === 'medium' ? 'Μεσαίοι Δήμοι' : 'Μεγάλοι Δήμοι');
 
             // Add chart title
             svg.append("text")
@@ -344,13 +368,13 @@
                 .attr("text-anchor", "middle")
                 .style("font-size", "16px")
                 .style("font-weight", "bold")
-                .text("Average Participation Rate by Municipality Size");
+                .text("Μέσο Ποσοστό Συμμετοχής ανά Μέγεθος Δήμου");
 
             // Add axis labels
             svg.append("text")
                 .attr("transform", `translate(${width / 2}, ${height + margin.bottom - 10})`)
                 .style("text-anchor", "middle")
-                .text("Year");
+                .text("Έτος");
 
             svg.append("text")
                 .attr("transform", "rotate(-90)")
@@ -358,7 +382,7 @@
                 .attr("x", 0 - (height / 2))
                 .attr("dy", "1em")
                 .style("text-anchor", "middle")
-                .text("Participation Rate");
+                .text("Ποσοστό Συμμετοχής");
 
             // Print examples
             const latestYear = d3.max(municipalitiesData, d => d['ΕΤΟΣ']);
