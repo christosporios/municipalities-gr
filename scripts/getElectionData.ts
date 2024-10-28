@@ -50,7 +50,6 @@ async function saveCSV(id: number, content: string): Promise<void> {
     await fs.promises.writeFile(filePath, content, 'utf-8');
     console.log(`Saved data for ID ${id}`);
 }
-
 async function combineCSVs(): Promise<void> {
     const files = await fs.promises.readdir(DATA_DIR);
     const csvFiles = files.filter(file => file.endsWith('.csv'));
@@ -71,9 +70,17 @@ async function combineCSVs(): Promise<void> {
         allData.push(...records.map((record: any) => ({ id, ...record })));
     }
 
+    // Create combined file with all data
     const combinedContent = stringify(allData, { header: true, columns: ['id', ...headers] });
     await fs.promises.writeFile(COMBINED_FILE, combinedContent, 'utf-8');
     console.log('Combined CSV created successfully.');
+
+    // Create municipalities-only file
+    const municipalitiesData = allData.filter(record => record['ΟΝΟΜΑΣΙΑ ΟΤΑ'].startsWith('Δ.'));
+    const municipalitiesContent = stringify(municipalitiesData, { header: true, columns: ['id', ...headers] });
+    const municipalitiesFile = path.join(__dirname, '..', '..', 'data', 'elections_municipalities_only.csv');
+    await fs.promises.writeFile(municipalitiesFile, municipalitiesContent, 'utf-8');
+    console.log('Municipalities-only CSV created successfully.');
 }
 
 async function main() {

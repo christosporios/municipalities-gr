@@ -13,6 +13,7 @@
             font-family: 'Roboto', sans-serif;
             line-height: 1.6;
             color: #333;
+            max-width: 100%;
             max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
@@ -51,6 +52,13 @@
         #chart {
             display: flex;
             justify-content: center;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        #chart svg {
+            min-width: 900px;
+            /* Minimum width to ensure readability */
         }
 
         #explanation {
@@ -58,6 +66,14 @@
             margin: 0 auto;
             text-align: justify;
             padding: 20px;
+        }
+
+        @media screen and (max-width: 800px) {
+            #chart {
+                margin: 0 -20px;
+                /* Negative margin to allow full-width scrolling */
+                padding: 0 20px;
+            }
         }
     </style>
 </head>
@@ -89,10 +105,18 @@
     </div>
     <script>
         // Load and process the data
-        d3.csv("./data/elections_all.csv").then(data => {
+        d3.csv("./data/elections_municipalities_only.csv").then(data => {
             // Filter for municipalities (Δήμοι) and communities (Κοινότητες)
             const municipalitiesData = data.filter(d => d['ΟΝΟΜΑΣΙΑ ΟΤΑ'].startsWith('Δ.') || d['ΟΝΟΜΑΣΙΑ ΟΤΑ'].startsWith('Κ.'));
             console.log(`There are ${municipalitiesData.length} municipality-years in the data.`)
+
+            // Data health check - verify we have 332 municipalities in 2023
+            const municipalities2023 = municipalitiesData.filter(d => d['ΕΤΟΣ'] === '2023');
+            if (municipalities2023.length === 332) {
+                console.log('Health check passed: Found expected 332 municipalities in 2023');
+            } else {
+                console.warn(`Health check failed: Found ${municipalities2023.length} municipalities in 2023, expected 332`);
+            }
 
             // Group data by year
             const dataByYear = d3.group(municipalitiesData, d => d['ΕΤΟΣ']);
