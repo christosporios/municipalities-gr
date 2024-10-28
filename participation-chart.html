@@ -110,12 +110,13 @@
             const municipalitiesData = data.filter(d => d['ΟΝΟΜΑΣΙΑ ΟΤΑ'].startsWith('Δ.') || d['ΟΝΟΜΑΣΙΑ ΟΤΑ'].startsWith('Κ.'));
             console.log(`There are ${municipalitiesData.length} municipality-years in the data.`)
 
-            // Data health check - verify we have 332 municipalities in 2023
+            // Data health check - count distinct municipalities in 2023
             const municipalities2023 = municipalitiesData.filter(d => d['ΕΤΟΣ'] === '2023');
-            if (municipalities2023.length === 332) {
-                console.log('Health check passed: Found expected 332 municipalities in 2023');
+            const distinctMunicipalities2023 = new Set(municipalities2023.map(d => d['ΟΝΟΜΑΣΙΑ ΟΤΑ'])).size;
+            if (distinctMunicipalities2023 === 332) {
+                console.log('Health check passed: Found expected 332 distinct municipalities in 2023');
             } else {
-                console.warn(`Health check failed: Found ${municipalities2023.length} municipalities in 2023, expected 332`);
+                console.warn(`Health check failed: Found ${distinctMunicipalities2023} distinct municipalities in 2023, expected 332`);
             }
 
             // Group data by year
